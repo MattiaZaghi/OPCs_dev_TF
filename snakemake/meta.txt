@@ -1,0 +1,5 @@
+#meta.txt: tab-delimited metadata for sample2json
+# Columns: sample_name	fastq_filename	factor	assay	sample_type	reference
+# Example:
+sampleA	sampleA_Input_ChIP	Input	ChIP	Input	hg38
+sampleA	sampleA_Treated_CutTag	Treated	CutTag	ChIP	hg38
