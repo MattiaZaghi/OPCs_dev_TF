@@ -1,0 +1,13 @@
+RUN_ID: "OPCs_dev_TF_run"
+THREADS: 4
+adapters: "adapters.fa"
+genome_size_bp: 2730871774
+peaks_qvalue: 0.01
+binsize: "10"
+norm_method: "RPKM"
+smooth_length: "300"
+c_t: 'CutTag'
+chip: 'ChIP'
+index_bt2_hg: "/path/to/bowtie2/index/prefix"
+target_reads: "5000000"
+SAMPLES_JSON: 'samples_example.json'
