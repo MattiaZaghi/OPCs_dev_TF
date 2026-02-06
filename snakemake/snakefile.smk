@@ -122,7 +122,7 @@ rule sorted_samtools:
     conda: "/home/mattia/miniconda3/envs/samtools.yml"
     shell:
         """
-        mkdir -p {params.dir}ß
+        mkdir -p {params.dir}
         samtools sort -o {output.bam} -O bam {input.sam} -@ {threads}
         samtools index {output.bam}
         """
@@ -131,18 +131,28 @@ rule dedup_picard:
     input:
         bam =  "{myrun}/sorted/samtools/{sample}.bam"
     output:
+        RG = "{myrun}/dedup/picard/{sample}_RG.bam",
         dedup = "{myrun}/dedup/picard/{sample}.bam",
         bai   = "{myrun}/dedup/picard/{sample}.bam.bai",
         metrics = "{myrun}/dedup/picard/{sample}.bam_metrics.txt"
     params:
-        dir = "{myrun}/dedup/picard/"
-    threads: config.get('THREADS',4)
-    conda: "/home/mattia/miniconda3/envs/samtools.yml"
+        dir="{myrun}/dedup/picard/",
+        tmp="{myrun}/dedup/picard/tmp"
+    resources:
+        mem_mb=140000
+    threads: config['THREADS'] 
+    conda:
+        "/home/mattia/miniconda3/envs/samtools.yml"
     shell:
         """
         mkdir -p {params.dir}
-        picard MarkDuplicates I={input.bam} O={output.dedup} M={output.metrics} REMOVE_DUPLICATES=true
-        samtools index {output.dedup}
+
+        picard AddOrReplaceReadGroups I={input.bam} O={output.RG} RGID=1 RGLB=lib1 RGPL=illumina RGPU=unit1 RGSM=sample1
+        
+        picard MarkDuplicates I={output.RG} O={output.dedup} M={output.metrics} VALIDATION_STRINGENCY=LENIENT ASSUME_SORTED=coordinate REMOVE_DUPLICATES=true TMP_DIR={params.tmp} 
+
+        samtools index {output.dedup} -@ {threads}
+
         """
 
 rule filter_chr_samtools:
