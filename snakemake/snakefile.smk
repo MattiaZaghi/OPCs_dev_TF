@@ -27,6 +27,7 @@ BAM=expand("{myrun}/dedup/picard/{sample}.bam", sample=ALL_SAMPLES, myrun=RUNID)
 ALL_FLAGSTAT = expand("{myrun}/dedup/picard/{sample}.flagstat", sample = ALL_SAMPLES,myrun=RUNID)
 ALL_BIGWIG= expand("{myrun}/coverage/deeptools/{sample}_RPKM.bw", sample = ALL_SAMPLES,myrun=RUNID)
 MACS3 = expand("{myrun}/peaks/macs3/{sample}_peaks.narrowPeak", sample = ALL_SAMPLES,myrun=RUNID)
+MACS3_BAMPE = expand("{myrun}/peaks/macs3/BAMPE/{sample}_peaks.narrowPeak", sample = ALL_SAMPLES,myrun=RUNID)
 SIZE=expand("{myrun}/dedup/picard/insert/{sample}_insert.pdf", sample = ALL_SAMPLES,myrun=RUNID)
 BED_DEDUP=expand("{myrun}/bed/bedtools/{sample}.bed", sample = ALL_SAMPLES,myrun=RUNID)
 PRESEQ=expand("{myrun}/preseq/{sample}_yield.txt", sample = ALL_SAMPLES,myrun=RUNID)
@@ -35,6 +36,7 @@ TARGETS = []
 TARGETS.extend(BAM)
 TARGETS.extend(ALL_BIGWIG)
 TARGETS.extend(MACS3)
+TARGETS.extend(MACS3_BAMPE)
 TARGETS.extend(ALL_FLAGSTAT)
 TARGETS.extend(SIZE)
 TARGETS.extend(BED_DEDUP)
@@ -216,6 +218,26 @@ rule macs3:
         mkdir -p {params.outdir}
         macs3 callpeak -t {input.treatment} --name {wildcards.sample} --outdir {params.outdir} -f BAM --gsize {params.gsize} -q {params.qvalue} --call-summits 2> {params.outdir}/{wildcards.sample}.log
         """
+
+rule MACS3_BAMPE:
+    input:
+        treatment = "{myrun}/filter/samtools/BAMPE/{sample}.bam"
+    output:
+        peaks_narrow = "{myrun}/peaks/macs3/BAMPE/{sample}_peaks.narrowPeak",
+        summits = "{myrun}/peaks/macs3/BAMPE/{sample}_summits.bed",
+        peaks_xls = "{myrun}/peaks/macs3/BAMPE/{sample}_peaks.xls"
+    params:
+        outdir = "{myrun}/peaks/macs3/BAMPE/",
+        gsize = config.get('genome_size_bp','hs'),
+        qvalue = config.get('peaks_qvalue',0.01)
+    threads: config.get('THREADS',4)
+    conda: "/home/mattia/miniconda3/envs/macs3.yml"
+    shell:
+        """
+        mkdir -p {params.outdir}
+        macs3 callpeak -t {input.treatment} --name {wildcards.sample} --outdir {params.outdir} -f BAMPE --gsize {params.gsize} -q {params.qvalue} --call-summits --nomodel --keep-dup al 
+        """
+
 rule bam_to_bed:
     input: 
         filter = "{myrun}/filter/samtools/{sample}.bam"

@@ -6,6 +6,7 @@ peaks_qvalue: 0.01
 binsize: "10"
 norm_method: "RPKM"
 smooth_length: "300"
+extsize: "200"
 c_t: 'nanoCT'
 chip: 'ChIP'
 index_bt2_hg: "/home/mattia/Genomes/hg38/fa/hg38"
