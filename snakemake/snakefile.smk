@@ -216,12 +216,12 @@ rule macs3:
     shell:
         """
         mkdir -p {params.outdir}
-        macs3 callpeak -t {input.treatment} --name {wildcards.sample} --outdir {params.outdir} -f BAM --gsize {params.gsize} -q {params.qvalue} --call-summits 2> {params.outdir}/{wildcards.sample}.log
+        macs3 callpeak -t {input.treatment} --name {wildcards.sample} --outdir {params.outdir} --gsize {params.gsize} -q {params.qvalue} --call-summits 2> {params.outdir}/{wildcards.sample}.log
         """
 
 rule MACS3_BAMPE:
     input:
-        treatment = "{myrun}/filter/samtools/BAMPE/{sample}.bam"
+        treatment = "{myrun}/filter/samtools/{sample}.bam"
     output:
         peaks_narrow = "{myrun}/peaks/macs3/BAMPE/{sample}_peaks.narrowPeak",
         summits = "{myrun}/peaks/macs3/BAMPE/{sample}_summits.bed",
@@ -235,7 +235,7 @@ rule MACS3_BAMPE:
     shell:
         """
         mkdir -p {params.outdir}
-        macs3 callpeak -t {input.treatment} --name {wildcards.sample} --outdir {params.outdir} -f BAMPE --gsize {params.gsize} -q {params.qvalue} --call-summits --nomodel --keep-dup al 
+        macs3 callpeak -t {input.treatment} --name {wildcards.sample} --outdir {params.outdir} -f BAMPE --gsize {params.gsize} -q {params.qvalue} --call-summits --keep-dup all --extsize 55 -B --SPMR --nomodel
         """
 
 rule bam_to_bed:

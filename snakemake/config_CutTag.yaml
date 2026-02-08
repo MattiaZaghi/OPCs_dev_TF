@@ -2,7 +2,7 @@ RUN_ID: "OPCs_dev_TF"
 THREADS: 5
 adapters: "adapters.fa"
 genome_size_bp: 2730871774
-peaks_qvalue: 0.01
+peaks_qvalue: 0.0000000001
 binsize: "10"
 norm_method: "RPKM"
 smooth_length: "300"
