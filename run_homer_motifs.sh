@@ -13,7 +13,7 @@
 # - Genome database files (downloaded via configureHomer.pl)
 # - hg38 peak files in narrowPeak format
 
-set -e  # Exit on error
+set -euo pipefail  # Exit on error, treat unset vars as errors, fail on pipeline errors
 
 # ============================================================================
 # Configuration
@@ -53,6 +53,16 @@ fi
 
 echo "✓ HOMER installation found at: $HOMER_HOME"
 echo "  findMotifsGenome.pl: ${HOMER_HOME}/bin/findMotifsGenome.pl"
+
+# Verify known motif database is present (required for -h)
+KNOWN_TF_TABLE="${HOMER_HOME}/data/knownTFs/organism.table.txt"
+if [ ! -f "$KNOWN_TF_TABLE" ]; then
+    echo "ERROR: Missing known motif database file: $KNOWN_TF_TABLE"
+    echo "This causes 'Where is the file?' and empty output directories."
+    echo "Fix by installing the HOMER base package:"
+    echo "  perl ${HOMER_HOME}/configureHomer.pl -install homer"
+    exit 1
+fi
 
 # ============================================================================
 # Verify Input Files Exist

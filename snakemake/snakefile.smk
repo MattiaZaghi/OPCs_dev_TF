@@ -22,6 +22,9 @@ CHIPS = [sample for sample in MARK_SAMPLES if CHIP in sample]
 ALL_SAMPLES =  CHIPS + CUT_TAGS
 
 RUNID = config["RUN_ID"]
+BLACKLIST = config.get("blacklist_bed")
+if not BLACKLIST:
+    raise ValueError("Missing config key: blacklist_bed (path to blacklist BED file)")
 
 BAM=expand("{myrun}/dedup/picard/{sample}.bam", sample=ALL_SAMPLES, myrun=RUNID)
 ALL_FLAGSTAT = expand("{myrun}/dedup/picard/{sample}.flagstat", sample = ALL_SAMPLES,myrun=RUNID)
@@ -203,9 +206,33 @@ rule filter_chr_samtools:
         
         """
 
+rule filter_blacklist_samtools:
+    """
+    Remove blacklisted regions from the filtered BAM using samtools.
+    """
+    input:
+        filter = "{myrun}/filter/samtools/{sample}.bam"
+    output:
+        clean = "{myrun}/filter/blacklist/{sample}.bam",
+        bai = "{myrun}/filter/blacklist/{sample}.bam.bai"
+    params:
+        dir = "{myrun}/filter/blacklist/",
+        blacklist = BLACKLIST
+    threads: config['THREADS']
+    conda:
+        "/home/mattia/miniconda3/envs/samtools.yml"
+    shell:
+        """
+        mkdir -p {params.dir}
+
+        samtools view -@ {threads} -b -L {params.blacklist} -U {output.clean} -o /dev/null {input.filter}
+
+        samtools index {output.clean} -@ {threads}
+        """
+
 rule coverage_deeptools:
     input:
-        dedup  = "{myrun}/filter/samtools/{sample}.bam"
+        dedup  = "{myrun}/filter/blacklist/{sample}.bam"
     output:
         bw="{myrun}/coverage/deeptools/{sample}_RPKM.bw"
     params:
@@ -222,7 +249,7 @@ rule coverage_deeptools:
 
 rule macs3:
     input:
-        treatment = "{myrun}/filter/samtools/{sample}.bam"
+        treatment = "{myrun}/filter/blacklist/{sample}.bam"
     output:
         peaks_narrow = "{myrun}/peaks/macs3/{sample}_peaks.narrowPeak",
         summits = "{myrun}/peaks/macs3/{sample}_summits.bed",
@@ -241,7 +268,7 @@ rule macs3:
 
 rule MACS3_BAMPE:
     input:
-        treatment = "{myrun}/filter/samtools/{sample}.bam"
+        treatment = "{myrun}/filter/blacklist/{sample}.bam"
     output:
         peaks_narrow = "{myrun}/peaks/macs3/BAMPE/{sample}_peaks.narrowPeak",
         summits = "{myrun}/peaks/macs3/BAMPE/{sample}_summits.bed",

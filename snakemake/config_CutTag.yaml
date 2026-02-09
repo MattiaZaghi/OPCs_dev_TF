@@ -12,3 +12,4 @@ chip: 'ChIP'
 index_bt2_hg: "/home/mattia/Genomes/hg38/fa/hg38"
 target_reads: "5000000"
 SAMPLES_JSON: '/home/mattia/OPCs_dev_TF/snakemake/samples_ChIP.json'
+blacklist_bed: "/home/mattia/Genomes/hg38/blacklist/hg38.blacklist.bed"
