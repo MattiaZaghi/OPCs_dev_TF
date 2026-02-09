@@ -1,0 +1,194 @@
+jupyter:
+  jupytext:
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.17.1
+  kernelspec:
+    display_name: R
+    language: R
+    name: ir
+---
+
+### Peaks distribution and annotation — BAMPE narrowPeak files
+
+```{r}
+# ============================================================================
+# Load Required Libraries for Peak Analysis
+# ============================================================================
+# This section loads all necessary R packages for analyzing BAMPE narrowPeak files
+# 
+# Libraries overview:
+# - ggplot2: Creating publication-quality plots
+# - ChIPseeker: Annotating peaks to genomic features (genes, promoters, etc.)
+# - TxDb/org.Hs.eg.db: Gene annotation databases for human genome (hg38)
+# - GenomicRanges: Working with genomic coordinates and ranges
+# - openxlsx: Writing results to Excel files
+# - dplyr/tibble: Data manipulation and organization
+# - ChIPpeakAnno: Additional peak annotation tools
+# - GenomeInfoDb: Genome information utilities
+# - clusterProfiler: Functional enrichment analysis (Gene Ontology, KEGG)
+# - enrichplot: Visualization of enrichment results
+# - AnnotationDbi: Interface to annotation databases
+
+rm(list=ls())  # Clear workspace to start fresh
+library(ggplot2)
+library(ChIPseeker)
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+library(org.Hs.eg.db)
+library(GenomicRanges)
+library(openxlsx)
+library(dplyr)
+library(tibble)
+library(ChIPpeakAnno)
+library(GenomeInfoDb)
+library(clusterProfiler)
+library(enrichplot)
+library(DOSE)
+library(AnnotationDbi)
+```
+
+## Configure paths and genome
+
+```{r}
+# ============================================================================
+# Step 1: Configure Paths and Genome Settings
+# ============================================================================
+# This section sets up the directories and genome information needed for the analysis.
+
+# Define the INPUT directory containing narrowPeak files from MACS3
+# narrowPeak files are text files produced by peak calling software (MACS3)
+# Format: chr, start, end, name, score, strand, signalValue, pValue, qValue, peak
+peak_dir <- "/cfs/klemming/projects/supr/uppstore2017150/Mattia/macs3/BAMPE"
+
+# Define the OUTPUT directory where all results will be saved
+# This includes: annotated peaks (Excel), enrichment results, and plots (PNG)
+out_dir <- "/cfs/klemming/projects/supr/uppstore2017150/Mattia/Analysis"
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+# ============================================================================
+# Select the Reference Genome
+# ============================================================================
+# Options: 'hg38' (human, GRCh38) or 'mm10' (mouse)
+# This determines which genome annotation database to use
+genome <- "hg38"
+
+# Load the appropriate transcriptome database (TxDb) based on genome choice
+# TxDb contains information about gene structure (exons, promoters, intergenic regions, etc.)
+txdb <- if (genome == "hg38") TxDb.Hsapiens.UCSC.hg38.knownGene else NULL
+
+# Load the organism-specific annotation database (org.db)
+# This database maps gene IDs to gene symbols, descriptions, and GO terms
+orgdb <- if (genome == "hg38") org.Hs.eg.db else NULL
+
+# Store as string name for use in annotatePeak function
+anno_db <- if (genome == "hg38") "org.Hs.eg.db" else "org.Mm.eg.db"
+
+# Set organism code for KEGG pathway analysis
+# 'hsa' = Homo sapiens (human), 'mmu' = Mus musculus (mouse)
+org_kegg <- if (genome == "hg38") "hsa" else "mmu"
+```
+
+## Read narrowPeak files, resize summits and annotate
+
+```{r}
+peak_files <- list.files(peak_dir, pattern = "\\.narrowPeak$", full.names = TRUE)
+if (length(peak_files) == 0) stop("No .narrowPeak files found in: ", peak_dir)
+
+peak_list <- list()
+feature_tables <- list()
+
+for (pf in peak_files) {
+  sample <- basename(pf) %>% gsub("_peaks\\.narrowPeak$|\\.narrowPeak$", "", .)
+  message("Processing: ", sample)
+
+  dat <- read.table(pf, header = FALSE, sep = "\t", stringsAsFactors = FALSE)
+  colnames(dat)[1:10] <- c("chr","start","end","name","score","strand","signalValue","pValue","qValue","peak")
+  # compute summit coordinate and make GRanges
+  dat$summit <- dat$start + dat$peak
+  summits <- GRanges(seqnames = dat$chr, ranges = IRanges(start = dat$summit, end = dat$summit))
+  summits <- resize(summits, width = 500, fix = "center")
+
+  # annotate peaks (ChIPseeker)
+  ann <- annotatePeak(summits, TxDb = txdb, annoDb = anno_db, tssRegion = c(-3000, 3000))
+  ann_df <- as.data.frame(ann)
+  write.xlsx(ann_df, file = file.path(out_dir, paste0(sample, "_annotated_peaks.xlsx")))
+
+  # Functional enrichment: extract gene SYMBOLs from ChIPseeker annotation
+  genes_sym <- unique(na.omit(ann_df$SYMBOL))
+  genes_sym <- genes_sym[genes_sym != "0" & genes_sym != ""]
+  if (length(genes_sym) > 0 && !is.null(orgdb)) {
+    gene_map <- tryCatch({ bitr(genes_sym, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = orgdb) }, error = function(e) NULL)
+    if (!is.null(gene_map) && nrow(gene_map) > 0) {
+      entrez_ids <- unique(gene_map$ENTREZID)
+
+      # GO Biological Process
+      ego <- tryCatch({
+        enrichGO(gene = entrez_ids, OrgDb = orgdb, keyType = "ENTREZID",
+                 ont = "BP", pAdjustMethod = "BH", pvalueCutoff = 0.05)
+      }, error = function(e) NULL)
+      if (!is.null(ego) && nrow(as.data.frame(ego)) > 0) {
+        write.xlsx(as.data.frame(ego), file = file.path(out_dir, paste0(sample, "_GO_BP_enrichment.xlsx")))
+        png(file.path(out_dir, paste0(sample, "_GO_BP_dotplot.png")), width = 1200, height = 1000, res = 150); print(dotplot(ego, showCategory = 20) + ggtitle(paste0(sample, " GO BP"))); dev.off()
+        png(file.path(out_dir, paste0(sample, "_GO_BP_barplot.png")), width = 1200, height = 1000, res = 150); print(barplot(ego, showCategory = 20) + ggtitle(paste0(sample, " GO BP"))); dev.off()
+        png(file.path(out_dir, paste0(sample, "_GO_BP_cnet.png")), width = 1200, height = 1000, res = 150); try(print(cnetplot(ego, categorySize = "pvalue", showCategory = 8)), silent = TRUE); dev.off()
+      } else {
+        message("No enriched GO BP terms for sample: ", sample)
+      }
+
+      # KEGG (optional)
+      kk <- tryCatch({ enrichKEGG(gene = entrez_ids, organism = org_kegg, pvalueCutoff = 0.05) }, error = function(e) NULL)
+      if (!is.null(kk) && nrow(as.data.frame(kk)) > 0) {
+        write.xlsx(as.data.frame(kk), file = file.path(out_dir, paste0(sample, "_KEGG_enrichment.xlsx")))
+        png(file.path(out_dir, paste0(sample, "_KEGG_dotplot.png")), width = 1200, height = 1000, res = 150); print(dotplot(kk, showCategory = 20) + ggtitle(paste0(sample, " KEGG"))); dev.off()
+      } else {
+        message("No KEGG terms or KEGG failed for sample: ", sample)
+      }
+    } else {
+      message("No ENTREZ ID mapping for sample: ", sample)
+    }
+  } else {
+    message("No gene SYMBOLs found for sample: ", sample)
+  }
+
+  # summarize feature distribution
+  ft <- as.data.frame(table(gsub(" \\(.+", "", ann_df$annotation)))
+  colnames(ft) <- c("Feature","Freq")
+  feature_tables[[sample]] <- ft
+
+  peak_list[[sample]] <- summits
+}
+```
+
+## Per-sample pie charts and combined distribution
+
+```{r}
+for (s in names(feature_tables)) {
+  ft <- feature_tables[[s]]
+  p <- ggplot(ft, aes(x = "", y = Freq, fill = Feature)) +
+    geom_bar(stat = "identity", width = 1) + coord_polar("y") + theme_void() + ggtitle(s)
+  ggsave(filename = file.path(out_dir, paste0(s, "_feature_pie.png")), plot = p, width = 6, height = 4)
+}
+
+combined <- bind_rows(lapply(names(feature_tables), function(n) {
+  df <- feature_tables[[n]]; df$Sample <- n; df
+}), .id = NULL)
+
+p_all <- ggplot(combined, aes(x = Sample, y = Freq, fill = Feature)) +
+  geom_bar(stat = "identity", position = "fill") + theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + labs(y = "Proportion")
+ggsave(file.path(out_dir, "all_samples_genomic_distribution.png"), p_all, width = 10, height = 5)
+```
+
+## Summary
+
+```{r}
+cat("Processed", length(peak_files), "narrowPeak files. Results in:", out_dir, "\n")
+invisible(NULL)
+```
+
+Notes
+
+- Edit `genome` and `peak_dir` at the top to match your data. If using `mm10` replace `txdb` with an appropriate TxDb package (e.g. `TxDb.Mmusculus.UCSC.mm10.knownGene`) and `anno_db` with `org.Mm.eg.db`.
+- This Rmd is a concise template — extend with Venn/upset plots or motif analysis as needed.

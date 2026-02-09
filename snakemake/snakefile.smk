@@ -41,17 +41,35 @@ TARGETS.extend(PRESEQ)
 rule all:
     input: TARGETS
 
+
+def _sample_parts(sample):
+    # ensure we operate on the base sample name (strip any accidental path)
+    base = sample.split('/')[-1]
+    parts = base.split('_')
+    if len(parts) < 3:
+        raise KeyError(f"Unexpected sample name format: '{sample}' (expected 'sample_sampleType_assay')")
+    return parts[0], parts[1], parts[2]
+
+
 def get_R1(wildcards):
     sample = wildcards.sample
-    files = FILES[sample.split('_')[0]][sample.split('_')[1]][sample.split('_')[2]]
+    s, t, a = _sample_parts(sample)
+    try:
+        files = FILES[s][t][a]
+    except KeyError:
+        raise KeyError(f"Sample '{s}' with type '{t}' and assay '{a}' not found in SAMPLES_JSON")
     for file in files:
         if re.search(r'_R1_|_1.fastq|_1.fq', file):
             return file
-    raise ValueError("R1 file not found for {}".format(sample))
+    raise ValueError(f"R1 file not found for {sample}")
 
 def get_R2(wildcards):
     sample = wildcards.sample
-    files = FILES[sample.split('_')[0]][sample.split('_')[1]][sample.split('_')[2]]
+    s, t, a = _sample_parts(sample)
+    try:
+        files = FILES[s][t][a]
+    except KeyError:
+        raise KeyError(f"Sample '{s}' with type '{t}' and assay '{a}' not found in SAMPLES_JSON")
     for file in files:
         if re.search(r'_R2_|_2.fastq|_2.fq', file):
             return file

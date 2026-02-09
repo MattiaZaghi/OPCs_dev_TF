@@ -1,0 +1,24 @@
+name: bampe_analysis
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - r-base=4.3
+  - r-ggplot2
+  - r-dplyr
+  - r-tibble
+  - r-openxlsx
+  - bioconductor-chipseeker
+  - bioconductor-txdb.hsapiens.ucsc.hg38.knowngene
+  - bioconductor-org.hs.eg.db
+  - bioconductor-genomicranges
+  - bioconductor-chippeakanno
+  - bioconductor-genomeinfodb
+  - bioconductor-clusterprofiler
+  - bioconductor-enrichplot
+  - bioconductor-dose
+  - bioconductor-annotationdbi
+  - r-irkernel
+  - jupyter
+  - r-rmarkdown
